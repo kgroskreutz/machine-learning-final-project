@@ -1,0 +1,121 @@
+---
+title: "Coursera Machine Learning Course Project"
+author: "Katie Groskreutz"
+date: "Wednesday, September 07, 2016"
+output: html_document
+---
+
+Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+The goal of your project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. You may use any of the other variables to predict with. You should create a report describing how you built your model, how you used cross validation, what you think the expected out of sample error is, and why you made the choices you did. You will also use your prediction model to predict 20 different test cases.
+
+The first step is to load the data and libraries.
+
+```{r}
+
+library(randomForest)
+library(caret)
+library(rpart)
+library(RANN)
+set.seed(33833)
+
+training <- read.csv("C:/Users/518046/Desktop/MachineLearning/Week4/CourseProject/pml-training.csv", na.strings=c("#DIV/0!"))
+testing <- read.csv("C:/Users/518046/Desktop/MachineLearning/Week4/CourseProject/pml-testing.csv", na.strings=c("#DIV/0!"))
+
+```
+
+Data Exploration and Partitioning
+
+```{r}
+prop.table(table(training$classe))
+
+#Partition the training set into other training and testing set
+trainRows <- createDataPartition(training$classe, p = 0.8, list = FALSE)
+train <- training[trainRows,]
+test <- training[-trainRows,]
+```
+
+Data Cleaning and Preprocessing
+```{r}
+
+#Remove Columns with near zero variance
+nzvCols <- nearZeroVar(train)
+train <- train[-nzvCols]
+test <- test[-nzvCols]
+
+#Remove near zero variance columns from original testing data
+testing <- testing[-nzvCols]
+
+#Determine which columns are numeric
+numericCols <- which(lapply(train,class) %in% c('numeric'))
+
+#Preprocess data using K nearest neighbors impute
+preProcObj <- preProcess(train[,numericCols], method = c("knnImpute"))
+trainingPredict <- predict(preProcObj, train[,numericCols])
+testing <- predict(preProcObj, testing[,numericCols])
+testingPredict <- predict(preProcObj, test[,numericCols])
+
+#Add classe Var back to dataset
+trainingPredict <- cbind(train$classe,trainingPredict)
+names(trainingPredict)[1] <- 'classe' #change name back to classe
+testingPredict <- cbind(test$classe,testingPredict)
+names(testingPredict)[1] <- 'classe'
+```
+
+Perform some cross validtion stuff here
+```{r}
+
+#Partition rows into training and crossvalidation
+crossvRows <- createDataPartition(trainingPredict$classe, p = 0.8)[[1]]
+crossvtest <- trainingPredict[-crossvRows,]
+crossvtrain <- trainingPredict[crossvRows,]
+
+```
+
+Train Models
+```{r}
+###Train MOdels###
+#Random Forest
+##mod2 <- train(classe ~ ., method="rf",data=predtrain,trControl=trainControl(method="cv"),number=3)
+modRF <- train(classe ~ ., data=trainingPredict, method="rf")
+predRF <- predict(modRF, trainingPredict)
+confusionMatrix(predRF, trainingPredict$classe)
+predRFTest <- predict(modRF, testingPredict)
+confusionMatrix(predRFTest, testingPredict$classe)
+
+#Gradient Boosted Model
+#modGBM <- train(classe ~ ., data=trainingPredict, method="gbm")
+#predGBM <- predict(modGBM, trainingPredict)
+#confusionMatrix(predGBM, trainingPredict$classe)
+
+#Linear Discriminant Analysis
+#modLDA <- train(classe ~ ., data=trainingPredict, method="lda")
+#predLDA <- predict(modLDA, trainingPredict)
+#confusionMatrix(predLDA, trainingPredict$classe)
+
+```
+
+Results
+
+```{r}
+#Random Forest Variable Importance
+varImpObj <- varImp(modRF)
+plot(varImpObj, main = "Importance of Top 20 Variables", top = 20)
+
+#Courera test data
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+x <- testing
+
+answers <- predict(modRF, newdata=x)
+answers
+```
+
+Random Forest model performed the best. The most important variables are roll_belt, yaw_belt and pitch_forearm, respecitvely. This model achieved 99.46% accuracy with the test data.

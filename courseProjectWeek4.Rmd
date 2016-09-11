@@ -64,7 +64,7 @@ testingPredict <- cbind(test$classe,testingPredict)
 names(testingPredict)[1] <- 'classe'
 ```
 
-Perform some cross validtion stuff here
+Cross validtion
 ```{r}
 
 #Partition rows into training and crossvalidation
@@ -72,7 +72,10 @@ crossvRows <- createDataPartition(trainingPredict$classe, p = 0.8)[[1]]
 crossvtest <- trainingPredict[-crossvRows,]
 crossvtrain <- trainingPredict[crossvRows,]
 
+trainmod_rf<-train(classe~.,method="rf",na.action = na.exclude,data=crossvtrain)
 ```
+
+Accuracy from using the cross-validation approach yielded accuracy of 0.967.
 
 Train Models
 ```{r}
